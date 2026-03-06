@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>Middlegame Trainer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -22,7 +21,6 @@
       border-radius: 6px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.15);
       padding: 20px;
-      box-sizing: border-box;
     }
     h1 {
       margin-top: 0;
@@ -54,7 +52,6 @@
       margin-top: 8px;
       text-align: center;
       font-size: 14px;
-      word-wrap: break-word;
     }
     #controls {
       margin-top: 10px;
@@ -191,27 +188,33 @@
     return 800;
   }
 
-  // Initialize Stockfish from a local worker script
   function initEngine(callback) {
     const statusEl = document.getElementById("engineStatus");
-    statusEl.textContent = "";
+    statusEl.textContent = "Engine initialising…";
+
+    if (engine) {
+      try { engine.terminate(); } catch (e) {}
+      engine = null;
+      engineReady = false;
+    }
 
     try {
-      // stockfish.js must be in the same repo, served by GitHub Pages
+      // Stockfish worker from the same repo (stockfish.js in root)
       engine = new Worker("stockfish.js");
     } catch (e) {
       statusEl.textContent = "Could not start Stockfish engine: " + e.message;
       return;
     }
 
-    engineReady = false;
-
     engine.onmessage = function (event) {
       const line = typeof event.data === "string" ? event.data : "";
+
       if (line.indexOf("uciok") !== -1) {
         engineReady = true;
+        statusEl.textContent = ""; // clear "initialising"
         if (typeof callback === "function") callback();
       }
+
       if (line.startsWith("bestmove")) {
         const parts = line.split(" ");
         const moveStr = parts[1];
@@ -223,6 +226,7 @@
       statusEl.textContent = "Engine error: " + e.message;
     };
 
+    // Send UCI init
     engine.postMessage("uci");
   }
 
@@ -318,7 +322,8 @@
 
     const info = document.getElementById("info");
     info.textContent =
-      "Playing as " + playerColor + " | Difficulty: " + difficulty.charAt(0).toUpperCase() + difficulty.slice(1) +
+      "Playing as " + playerColor + " | Difficulty: " +
+      difficulty.charAt(0).toUpperCase() + difficulty.slice(1) +
       " | Neutral middlegame (≈12 moves).";
 
     if ((game.turn() === "w" && playerColor === "black") ||
@@ -340,13 +345,10 @@
       showScreen("gameScreen");
     };
 
-    if (!engine) {
+    if (!engine || !engineReady) {
       initEngine(startPlay);
-    } else if (engineReady) {
-      startPlay();
     } else {
-      document.getElementById("engineStatus").textContent =
-        "Engine initialising, please wait a moment and try again.";
+      startPlay();
     }
   });
 
