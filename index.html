@@ -18,12 +18,6 @@
   --board-size: min(468px, 88vw);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body {
-  background:var(--bg); color:var(--cream);
-  font-family:'DM Mono',monospace;
-  min-height:100vh; display:flex; align-items:center; justify-content:center;
-  overflow-x:hidden;
-}
 body::before {
   content:''; position:fixed; inset:0;
   background: radial-gradient(ellipse at 20% 20%,rgba(201,168,76,.05) 0%,transparent 60%),
@@ -32,7 +26,14 @@ body::before {
 }
 
 /* ── SCREENS ── */
-.screen { display:none; width:100%; max-width:940px; padding:20px; }
+.screen {
+  display: none; width: 100%; max-width: 940px; padding: 20px;
+  /* screens scroll internally — body/html never scroll */
+  height: 100%; overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
 .screen.active { display:flex; flex-direction:column; align-items:center; }
 
 /* ── HOME ── */
@@ -294,26 +295,27 @@ h1 span { color:var(--gold); font-style:italic; }
   .top-btn { padding:9px 13px; }
   .move-pair { padding:4px 4px; }
   .move-san { padding:4px 5px; }
-  /* Prevent rubber-band scroll on iOS when touching buttons */
-  .topbar-btns { -webkit-overflow-scrolling:touch; }
 }
 
-/* Prevent ALL scroll/bounce/shake on iOS Safari */
+/* Prevent ALL scroll/bounce/shake on iOS Safari.
+   html and body must NEVER scroll — only internal containers do. */
 html {
   height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
-  position: fixed;
   width: 100%;
+  overflow: hidden;
+  position: fixed;          /* kills Safari's virtual scroll position entirely */
+  top: 0; left: 0;
 }
 body {
   height: 100%;
   width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;         /* body must NOT scroll — no overflow:auto here */
   overscroll-behavior: none;
-  -webkit-overflow-scrolling: touch;
-  position: relative;
+  position: fixed;          /* belt-and-suspenders: no scroll context on body */
+  top: 0; left: 0;
+  background: var(--bg); color: var(--cream);
+  font-family: 'DM Mono', monospace;
+  display: flex; align-items: center; justify-content: center;
 }
 </style>
 </head>
@@ -2002,19 +2004,18 @@ document.addEventListener('mousedown', e => {
 
 // ── iOS Safari scroll-shake prevention ───────────────────
 // Block any touchmove that would cause the page to scroll.
-// The board's own touchmove already calls preventDefault(), but
-// touches on non-board areas (sidebar, labels) can still trigger
-// Safari's scroll/bounce which causes the visible shake after moves.
 document.addEventListener('touchmove', function(e){
-  // Allow scrolling inside the move-list card only
+  // Allow scrolling inside the move-list only
   const moveList = document.getElementById('move-list');
   if(moveList && moveList.contains(e.target)) return;
   if(e.cancelable) e.preventDefault();
 }, { passive: false });
 
-// After every move the body scroll position can drift on Safari.
-// Reset it to 0 so the board never jumps.
+// After every move, snap the game screen back to top so Safari's
+// async compositor never shows a drifted scroll position.
 function _lockScroll(){
+  const gs = document.getElementById('game-screen');
+  if(gs) gs.scrollTop = 0;
   document.body.scrollTop = 0;
   document.documentElement.scrollTop = 0;
 }
